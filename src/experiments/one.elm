@@ -6,92 +6,152 @@ import Graphics.Element exposing (..)
 import Keyboard
 import Time exposing (..)
 import Window
-import Debug
 
-type alias Keys =
+type alias Input =
   { x : Int
   , y : Int
+  , shoot : Bool
+  , delta : Time
   }
 
-type alias Model =
-  { x : Float
-  , y : Float
-  , bullets : List Bullet
-  }
-
-type alias Bullet =
-  { x : Float
+type alias Object a =
+  { a |
+    x : Float
   , y : Float
   , dx : Float
   , dy : Float
   }
 
-update : (Float, Keys) -> Model -> Model
-update (dt, keys) model =
-  model
-  |> updatePosition (dt, keys)
-  |> updateShooting keys
-  |> updateBullets dt
-
-updateBullets : Float -> Model -> Model
-updateBullets dt model =
-  let
-    bullets = List.map (\x -> { x | y <- x.y + x.dy * dt }) model.bullets
-    remaining = List.filter (\x -> x.y < 300) bullets
-  in
-    { model | bullets <- remaining }
-
-updatePosition : (Float, Keys) -> Model -> Model
-updatePosition (dt, keys) model =
-  { model |
-      x <- model.x + (toFloat keys.x)
-  ,   y <- model.y + (toFloat keys.y)
+type alias Game =
+  { player : Player
+  , bullets : List Bullet
   }
 
+type alias Player =
+  Object { shooting : Bool
+         , speed : Float
+         }
 
-updateShooting : Keys -> Model -> Model
-updateShooting keys model =
-  if keys.y > 0
-     then { model | bullets <- (bullet model)::model.bullets }
-     else model
+type alias Bullet =
+  Object { toLive : Int }
 
-input : Signal (Float, Keys)
+update : Input -> Game -> Game
+update input game =
+  game
+  |> processInput input
+  |> updatePosition
+  |> updateShooting
+  |> updateBullets
+
+processInput : Input -> Game -> Game
+processInput { x, y, shoot } ({ player } as game) =
+  let
+    newPlayer =
+      { player |
+        dx <- (toFloat x)
+      , dy <- (toFloat y)
+      , shooting <- shoot
+      }
+  in
+    { game | player <- newPlayer }
+
+updatePosition : Game -> Game
+updatePosition ({ player } as game) =
+  let
+    { x, y, dx, dy, speed } = player
+    newPlayer =
+      { player |
+        x <- x + dx * speed
+      , y <- y + dy * speed
+      }
+  in
+    { game | player <- newPlayer }
+
+updateBullet : Bullet -> Bullet
+updateBullet bullet =
+  let
+    newY = bullet.y + bullet.dy
+    newToLive = bullet.toLive - 1
+  in
+    { bullet | y <- newY, toLive <- newToLive }
+
+shouldKeep : Bullet -> Bool
+shouldKeep { toLive } =
+  toLive > 0
+
+updateBullets : Game -> Game
+updateBullets ({ bullets } as game) =
+  let
+    newBullets = List.map updateBullet bullets
+    remainingBullets = List.filter shouldKeep newBullets
+  in
+    { game | bullets <- remainingBullets }
+
+updateShooting : Game -> Game
+updateShooting ({ player, bullets } as game) =
+  if player.shooting
+     then { game | bullets <- (bullet player)::bullets }
+     else game
+
+delta : Signal Float
+delta = fps 30
+
+input : Signal Input
 input =
+  Signal.sampleOn delta <|
+    Signal.map4 Input
+      (Signal.map .x Keyboard.arrows)
+      (Signal.map .y Keyboard.arrows)
+      Keyboard.space
+      delta
+
+drawOne : Form -> Object a -> Form
+drawOne form { x, y } =
+  form |> move (x, y)
+
+drawMany : Form -> List (Object a) -> List Form
+drawMany form objects =
+  List.map (drawOne form) objects
+
+playerRect : Form
+playerRect =
+  rect 25 25 |> filled black
+
+bulletRect : Form
+bulletRect =
+  rect 4 4 |> filled red
+
+view : (Int, Int) -> Game -> Element
+view (width, height) { player, bullets } =
   let
-    delta = Signal.map (\t -> t/20) (fps 30)
+    drawnPlayer = drawOne playerRect player
+    drawnBullets = drawMany bulletRect bullets
   in
-    Signal.sampleOn delta (Signal.map2 (,) delta Keyboard.arrows)
+    collage width height <| drawnPlayer::drawnBullets
 
-drawBullets : Form -> List Bullet -> List Form
-drawBullets form bullets =
-  List.map (\b -> form |> move (b.x, b.y)) bullets
-
-view : (Int, Int) -> Model -> Element
-view (width, height) model =
-  let
-    cyanRectangle = rect 2 2 |> filled red
-    blackishRectangle = rect 25 25 |> filled black
-    position = (model.x, model.y)
-    player = blackishRectangle |> move position
-    bullets = drawBullets cyanRectangle model.bullets
-  in
-    collage width height (player::bullets)
-
-box : Model
-box =
-  { x = 0
-  , y = 0
-  , bullets = []
-  }
-
-bullet : Model -> Bullet
+bullet : Player -> Bullet
 bullet model =
   { x = model.x
   , y = model.y
   , dx = 0
-  , dy = 3
+  , dy = 12
+  , toLive = 1000
+  }
+
+initialGame : Game
+initialGame =
+  { player =
+      { x = 0
+      , y = 0
+      , dx = 0
+      , dy = 0
+      , shooting = False
+      , speed = 6
+      }
+  , bullets = []
   }
 
 main : Signal Element
 main =
-  Signal.map2 view Window.dimensions (Signal.foldp update box input)
+  Signal.map2 view Window.dimensions <|
+    Signal.foldp update initialGame input
