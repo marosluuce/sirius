@@ -11,7 +11,7 @@ type alias Input =
   { x : Int
   , y : Int
   , shoot : Bool
-  , delta : Time
+  , delta : Float
   }
 
 type alias Object a =
@@ -20,6 +20,8 @@ type alias Object a =
   , y : Float
   , dx : Float
   , dy : Float
+  , width : Float
+  , height : Float
   }
 
 type alias Game =
@@ -30,6 +32,8 @@ type alias Game =
 type alias Player =
   Object { shooting : Bool
          , speed : Float
+         , fireRate : Float
+         , currentRate : Float
          }
 
 type alias Bullet =
@@ -43,14 +47,25 @@ update input game =
   |> updateShooting
   |> updateBullets
 
-processInput : Input -> Game -> Game
-processInput { x, y, shoot } ({ player } as game) =
+updateRate : Player -> Float -> Float
+updateRate { currentRate, fireRate } delta =
   let
+    newRate = currentRate + delta
+  in
+    if newRate >= fireRate
+      then 0
+      else newRate
+
+processInput : Input -> Game -> Game
+processInput { x, y, shoot, delta } ({ player } as game) =
+  let
+    newRate = updateRate player delta
     newPlayer =
       { player |
         dx <- (toFloat x)
       , dy <- (toFloat y)
-      , shooting <- shoot
+      , shooting <- shoot && newRate == 0
+      , currentRate <- newRate
       }
   in
     { game | player <- newPlayer }
@@ -58,7 +73,7 @@ processInput { x, y, shoot } ({ player } as game) =
 updatePosition : Game -> Game
 updatePosition ({ player } as game) =
   let
-    { x, y, dx, dy, speed } = player
+    { x, y, dx, dy, speed, currentRate, fireRate } = player
     newPlayer =
       { player |
         x <- x + dx * speed
@@ -75,15 +90,11 @@ updateBullet bullet =
   in
     { bullet | y <- newY, toLive <- newToLive }
 
-shouldKeep : Bullet -> Bool
-shouldKeep { toLive } =
-  toLive > 0
-
 updateBullets : Game -> Game
 updateBullets ({ bullets } as game) =
   let
     newBullets = List.map updateBullet bullets
-    remainingBullets = List.filter shouldKeep newBullets
+    remainingBullets = List.filter (\{ toLive } -> toLive > 0) newBullets
   in
     { game | bullets <- remainingBullets }
 
@@ -105,36 +116,39 @@ input =
       Keyboard.space
       delta
 
-drawOne : Form -> Object a -> Form
-drawOne form { x, y } =
+drawOne : Object a -> Form -> Form
+drawOne { x, y } form =
   form |> move (x, y)
 
-drawMany : Form -> List (Object a) -> List Form
-drawMany form objects =
-  List.map (drawOne form) objects
+drawMany : List (Object a) -> List Form -> List Form
+drawMany objects forms =
+  List.map2 drawOne objects forms
 
-playerRect : Form
-playerRect =
-  rect 25 25 |> filled black
+playerRect : Player -> Form
+playerRect { width, height } =
+  rect width height |> filled black
 
-bulletRect : Form
-bulletRect =
-  rect 4 4 |> filled red
+bulletRect : Bullet -> Form
+bulletRect { width, height } =
+  rect width height |> filled red
 
 view : (Int, Int) -> Game -> Element
 view (width, height) { player, bullets } =
   let
-    drawnPlayer = drawOne playerRect player
-    drawnBullets = drawMany bulletRect bullets
+    drawnPlayer = drawOne player <| playerRect player
+    drawnBullets = drawMany bullets <| List.map bulletRect bullets
   in
-    collage width height <| drawnPlayer::drawnBullets
+    collage width height <|
+      drawnPlayer::drawnBullets
 
 bullet : Player -> Bullet
 bullet model =
   { x = model.x
-  , y = model.y
+  , y = model.y + model.height
   , dx = 0
   , dy = 12
+  , width = 4
+  , height = 50
   , toLive = 1000
   }
 
@@ -145,8 +159,12 @@ initialGame =
       , y = 0
       , dx = 0
       , dy = 0
+      , width = 25
+      , height = 25
       , shooting = False
       , speed = 6
+      , fireRate = 300
+      , currentRate = 0
       }
   , bullets = []
   }
