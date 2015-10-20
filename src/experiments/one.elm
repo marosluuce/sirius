@@ -27,6 +27,9 @@ type alias Object a =
 type alias Game =
   { player : Player
   , bullets : List Bullet
+  , enemies : List Enemy
+  , enemySpawnRate : Float
+  , currentEnemyRate : Float
   }
 
 type alias Player =
@@ -39,6 +42,9 @@ type alias Player =
 type alias Bullet =
   Object { toLive : Int }
 
+type alias Enemy =
+  Object { health : Int }
+
 update : Input -> Game -> Game
 update input game =
   game
@@ -46,6 +52,38 @@ update input game =
   |> updatePosition
   |> updateShooting
   |> updateBullets
+  |> spawnEnemies input
+  |> updateEnemies
+
+updateEnemy : Enemy -> Enemy
+updateEnemy ({ y, dy } as enemy) =
+  { enemy | y <- y + dy }
+
+updateEnemies : Game -> Game
+updateEnemies ({ enemies } as game) =
+  let
+    updatedEnemies = List.map updateEnemy enemies
+  in
+    { game | enemies <- updatedEnemies }
+
+updateEnemySpawnRate : Float -> Game -> Float
+updateEnemySpawnRate delta { enemySpawnRate, currentEnemyRate } =
+  let
+    newEnemyRate = delta + currentEnemyRate
+  in
+    if newEnemyRate >= enemySpawnRate
+       then 0
+       else newEnemyRate
+
+spawnEnemies : Input -> Game -> Game
+spawnEnemies { delta } ({ enemies } as game) =
+  let
+    newEnemyRate = updateEnemySpawnRate delta game
+  in
+    { game |
+      currentEnemyRate <- newEnemyRate
+    , enemies <- if newEnemyRate == 0 then enemy::enemies else enemies
+    }
 
 updateRate : Player -> Float -> Float
 updateRate { currentRate, fireRate } delta =
@@ -83,10 +121,10 @@ updatePosition ({ player } as game) =
     { game | player <- newPlayer }
 
 updateBullet : Bullet -> Bullet
-updateBullet bullet =
+updateBullet ({ y, dy, toLive } as bullet) =
   let
-    newY = bullet.y + bullet.dy
-    newToLive = bullet.toLive - 1
+    newY = y + dy
+    newToLive = toLive - 1
   in
     { bullet | y <- newY, toLive <- newToLive }
 
@@ -132,16 +170,33 @@ bulletRect : Bullet -> Form
 bulletRect { width, height } =
   rect width height |> filled red
 
+enemyRect : Enemy -> Form
+enemyRect { width, height } =
+  rect width height |> filled yellow
+
 view : (Int, Int) -> Game -> Element
-view (width, height) { player, bullets } =
+view (width, height) { player, bullets, enemies } =
   let
     drawnPlayer = drawOne player <| playerRect player
     drawnBullets = drawMany bullets <| List.map bulletRect bullets
+    drawnEnemies = drawMany enemies <| List.map enemyRect enemies
   in
     collage width height <|
-      [ rect screen.width screen.height |> filled blue
+      [ rect screenWidth screenHeight |> filled blue
       , drawnPlayer
       ] ++ drawnBullets
+        ++ drawnEnemies
+
+enemy : Enemy
+enemy =
+  { x = 0
+  , y = halfHeight
+  , dx = 0
+  , dy = -7
+  , width = 16
+  , height = 16
+  , health = 50
+  }
 
 bullet : Player -> Bullet
 bullet model =
@@ -158,7 +213,7 @@ initialGame : Game
 initialGame =
   { player =
       { x = 0
-      , y = 0
+      , y = -halfHeight + 12.5
       , dx = 0
       , dy = 0
       , width = 25
@@ -169,18 +224,13 @@ initialGame =
       , currentRate = 0
       }
   , bullets = []
+  , enemies = []
+  , enemySpawnRate = 1500
+  , currentEnemyRate = 0
   }
 
-type alias Screen =
-  { width: Float
-  , height: Float
-  }
-
-screen : Screen
-screen =
-  { width = 800
-  , height = 600
-  }
+(screenWidth, screenHeight) = (800, 600)
+(halfWidth, halfHeight) = (400, 300)
 
 main : Signal Element
 main =
