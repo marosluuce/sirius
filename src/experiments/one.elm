@@ -139,7 +139,9 @@ view (width, height) { player, bullets } =
     drawnBullets = drawMany bullets <| List.map bulletRect bullets
   in
     collage width height <|
-      drawnPlayer::drawnBullets
+      [ rect screen.width screen.height |> filled blue
+      , drawnPlayer
+      ] ++ drawnBullets
 
 bullet : Player -> Bullet
 bullet model =
@@ -167,6 +169,17 @@ initialGame =
       , currentRate = 0
       }
   , bullets = []
+  }
+
+type alias Screen =
+  { width: Float
+  , height: Float
+  }
+
+screen : Screen
+screen =
+  { width = 800
+  , height = 600
   }
 
 main : Signal Element
