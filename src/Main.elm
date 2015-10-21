@@ -19,8 +19,6 @@ type alias Game =
   { player : Player
   , bullets : List Bullet
   , enemies : List Enemy
-  , enemySpawnRate : Float
-  , currentEnemyRate : Float
   , enemyGenerator : Generator Enemy
   }
 
@@ -42,22 +40,17 @@ newGame =
   { player = newPlayer -halfHeight
   , bullets = []
   , enemies = []
-  , enemySpawnRate = 1500
-  , currentEnemyRate = 0
   , enemyGenerator = enemyGenerator
   }
 
-updateGenerator : Float -> Generator a -> Generator a
-updateGenerator delta ({ spawnRate, currentRate } as generator) =
+generate : Float -> Generator a -> (Generator a, Maybe a)
+generate delta ({ spawnRate, currentRate, spawnType } as generator) =
   let
     newRate = currentRate + delta
-    changedRate = if newRate < spawnRate then newRate else 0
   in
-    { generator | currentRate <- changedRate }
-
-updateGenerators : Float -> Game -> Game
-updateGenerators delta ({ enemyGenerator } as game) =
-  { game | enemyGenerator <- updateGenerator delta enemyGenerator }
+    if newRate < spawnRate
+      then ({ generator | currentRate <- newRate }, Nothing)
+      else ({ generator | currentRate <- 0 }, Just spawnType)
 
 update : Input -> Game -> Game
 update ({ delta } as input) game =
@@ -66,8 +59,7 @@ update ({ delta } as input) game =
   |> updatePositions
   |> decayBullets
   |> updateShooting
-  |> updateGenerators delta
-  |> spawnEnemies
+  |> spawnEnemies delta
 
 updateMovement : Object a -> Object a
 updateMovement ({ x, y, dx, dy } as object) =
@@ -80,23 +72,14 @@ updateMovements : List (Object a) -> List (Object a)
 updateMovements objects =
   List.map updateMovement objects
 
-updateEnemySpawnRate : Float -> Game -> Float
-updateEnemySpawnRate delta { enemySpawnRate, currentEnemyRate } =
+spawnEnemies : Float -> Game -> Game
+spawnEnemies delta ({ enemies, enemyGenerator } as game) =
   let
-    newEnemyRate = delta + currentEnemyRate
+    (newGenerator, maybeEnemy) = generate delta enemyGenerator
   in
-    if newEnemyRate >= enemySpawnRate
-       then 0
-       else newEnemyRate
-
-spawnEnemies : Game -> Game
-spawnEnemies ({ enemies, enemyGenerator } as game) =
-  let
-    { currentRate, spawnType } = enemyGenerator
-  in
-    if currentRate == 0
-       then { game | enemies <- enemyGenerator.spawnType::enemies }
-       else game
+    case maybeEnemy of
+      Just enemy -> { game | enemyGenerator <- newGenerator, enemies <- enemy::enemies }
+      Nothing -> { game | enemyGenerator <- newGenerator }
 
 
 updateRate : Player -> Float -> Float
