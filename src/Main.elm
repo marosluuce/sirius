@@ -7,6 +7,9 @@ import Window
 
 import Input exposing (Input, input)
 import Draw
+import Player exposing (Player, newPlayer)
+import Bullet exposing (Bullet, newBullet)
+import Enemy exposing (Enemy, newEnemy)
 
 type alias Object a =
   { a |
@@ -25,19 +28,6 @@ type alias Game =
   , enemySpawnRate : Float
   , currentEnemyRate : Float
   }
-
-type alias Player =
-  Object { shooting : Bool
-         , speed : Float
-         , fireRate : Float
-         , currentRate : Float
-         }
-
-type alias Bullet =
-  Object { toLive : Int }
-
-type alias Enemy =
-  Object { health : Int }
 
 update : Input -> Game -> Game
 update input game =
@@ -76,7 +66,7 @@ spawnEnemies { delta } ({ enemies } as game) =
   in
     { game |
       currentEnemyRate <- newEnemyRate
-    , enemies <- if newEnemyRate == 0 then enemy::enemies else enemies
+    , enemies <- if newEnemyRate == 0 then (newEnemy halfHeight)::enemies else enemies
     }
 
 updateRate : Player -> Float -> Float
@@ -133,7 +123,7 @@ updateBullets ({ bullets } as game) =
 updateShooting : Game -> Game
 updateShooting ({ player, bullets } as game) =
   if player.shooting
-     then { game | bullets <- (bullet player)::bullets }
+     then { game | bullets <- (newBullet player)::bullets }
      else game
 
 playerRect : Player -> Form
@@ -164,42 +154,9 @@ view (width, height) { player, bullets, enemies } =
       ] ++ drawnBullets
         ++ drawnEnemies
 
-enemy : Enemy
-enemy =
-  { x = 0
-  , y = halfHeight
-  , dx = 0
-  , dy = -7
-  , width = 16
-  , height = 16
-  , health = 50
-  }
-
-bullet : Player -> Bullet
-bullet model =
-  { x = model.x
-  , y = model.y + model.height
-  , dx = 0
-  , dy = 12
-  , width = 4
-  , height = 50
-  , toLive = 1000
-  }
-
 initialGame : Game
 initialGame =
-  { player =
-      { x = 0
-      , y = -halfHeight + 12.5
-      , dx = 0
-      , dy = 0
-      , width = 25
-      , height = 25
-      , shooting = False
-      , speed = 6
-      , fireRate = 300
-      , currentRate = 0
-      }
+  { player = newPlayer -halfHeight
   , bullets = []
   , enemies = []
   , enemySpawnRate = 1500
