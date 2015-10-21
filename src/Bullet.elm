@@ -1,16 +1,7 @@
 module Bullet (Bullet, newBullet) where
 
+import Object exposing (Object)
 import Player exposing (Player)
-
-type alias Object a =
-  { a |
-    x : Float
-  , y : Float
-  , dx : Float
-  , dy : Float
-  , width : Float
-  , height : Float
-  }
 
 type alias Bullet =
   Object { toLive : Int }

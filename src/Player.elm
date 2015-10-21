@@ -1,14 +1,6 @@
 module Player (Player, newPlayer) where
 
-type alias Object a =
-  { a |
-    x : Float
-  , y : Float
-  , dx : Float
-  , dy : Float
-  , width : Float
-  , height : Float
-  }
+import Object exposing (Object)
 
 type alias Player =
   Object { shooting : Bool

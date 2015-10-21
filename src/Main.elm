@@ -11,15 +11,8 @@ import Player exposing (Player, newPlayer)
 import Bullet exposing (Bullet, newBullet)
 import Enemy exposing (Enemy, newEnemy)
 
-type alias Object a =
-  { a |
-    x : Float
-  , y : Float
-  , dx : Float
-  , dy : Float
-  , width : Float
-  , height : Float
-  }
+(screenWidth, screenHeight) = (800, 600)
+(halfWidth, halfHeight) = (400, 300)
 
 type alias Game =
   { player : Player
@@ -27,6 +20,15 @@ type alias Game =
   , enemies : List Enemy
   , enemySpawnRate : Float
   , currentEnemyRate : Float
+  }
+
+newGame : Game
+newGame =
+  { player = newPlayer -halfHeight
+  , bullets = []
+  , enemies = []
+  , enemySpawnRate = 1500
+  , currentEnemyRate = 0
   }
 
 update : Input -> Game -> Game
@@ -154,19 +156,7 @@ view (width, height) { player, bullets, enemies } =
       ] ++ drawnBullets
         ++ drawnEnemies
 
-initialGame : Game
-initialGame =
-  { player = newPlayer -halfHeight
-  , bullets = []
-  , enemies = []
-  , enemySpawnRate = 1500
-  , currentEnemyRate = 0
-  }
-
-(screenWidth, screenHeight) = (800, 600)
-(halfWidth, halfHeight) = (400, 300)
-
 main : Signal Element
 main =
   Signal.map2 view Window.dimensions <|
-    Signal.foldp update initialGame input
+    Signal.foldp update newGame input
