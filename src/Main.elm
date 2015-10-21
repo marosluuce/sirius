@@ -53,9 +53,9 @@ generate delta ({ x, y, spawnRate, currentRate, spawnType } as generator) =
     newRate = currentRate + delta
     newType = spawnType x y
   in
-    if newRate < spawnRate
-      then ({ generator | currentRate <- newRate }, Nothing)
-      else ({ generator | currentRate <- 0 }, Just newType)
+    if newRate >= spawnRate
+      then ({ generator | currentRate <- 0 }, Just newType)
+      else ({ generator | currentRate <- newRate }, Nothing)
 
 update : Input -> Game -> Game
 update ({ delta } as input) game =
@@ -81,11 +81,11 @@ spawnEnemies : Float -> Game -> Game
 spawnEnemies delta ({ enemies, enemyGenerator } as game) =
   let
     (newGenerator, maybeEnemy) = generate delta enemyGenerator
+    newEnemies = case maybeEnemy of
+                   Just enemy -> enemy::enemies
+                   Nothing -> enemies
   in
-    case maybeEnemy of
-      Just enemy -> { game | enemyGenerator <- newGenerator, enemies <- enemy::enemies }
-      Nothing -> { game | enemyGenerator <- newGenerator }
-
+    { game | enemyGenerator <- newGenerator, enemies <- newEnemies }
 
 updateRate : Player -> Float -> Float
 updateRate { currentRate, fireRate } delta =
