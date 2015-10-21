@@ -10,6 +10,7 @@ import Draw
 import Player exposing (Player, newPlayer)
 import Bullet exposing (Bullet, newBullet)
 import Enemy exposing (Enemy, newEnemy)
+import Object exposing (Object)
 
 (screenWidth, screenHeight) = (800, 600)
 (halfWidth, halfHeight) = (400, 300)
@@ -20,6 +21,20 @@ type alias Game =
   , enemies : List Enemy
   , enemySpawnRate : Float
   , currentEnemyRate : Float
+  , enemyGenerator : Generator Enemy
+  }
+
+type alias Generator a =
+  { spawnRate : Float
+  , currentRate : Float
+  , spawnType : a
+  }
+
+enemyGenerator : Generator Enemy
+enemyGenerator =
+  { spawnRate = 1500
+  , currentRate = 0
+  , spawnType = newEnemy halfHeight
   }
 
 newGame : Game
@@ -29,28 +44,41 @@ newGame =
   , enemies = []
   , enemySpawnRate = 1500
   , currentEnemyRate = 0
+  , enemyGenerator = enemyGenerator
   }
 
+updateGenerator : Float -> Generator a -> Generator a
+updateGenerator delta ({ spawnRate, currentRate } as generator) =
+  let
+    newRate = currentRate + delta
+    changedRate = if newRate < spawnRate then newRate else 0
+  in
+    { generator | currentRate <- changedRate }
+
+updateGenerators : Float -> Game -> Game
+updateGenerators delta ({ enemyGenerator } as game) =
+  { game | enemyGenerator <- updateGenerator delta enemyGenerator }
+
 update : Input -> Game -> Game
-update input game =
+update ({ delta } as input) game =
   game
   |> processInput input
-  |> updatePosition
+  |> updatePositions
+  |> decayBullets
   |> updateShooting
-  |> updateBullets
-  |> spawnEnemies input
-  |> updateEnemies
+  |> updateGenerators delta
+  |> spawnEnemies
 
-updateEnemy : Enemy -> Enemy
-updateEnemy ({ y, dy } as enemy) =
-  { enemy | y <- y + dy }
+updateMovement : Object a -> Object a
+updateMovement ({ x, y, dx, dy } as object) =
+  { object |
+    x <- x + dx
+  , y <- y + dy
+  }
 
-updateEnemies : Game -> Game
-updateEnemies ({ enemies } as game) =
-  let
-    updatedEnemies = List.map updateEnemy enemies
-  in
-    { game | enemies <- updatedEnemies }
+updateMovements : List (Object a) -> List (Object a)
+updateMovements objects =
+  List.map updateMovement objects
 
 updateEnemySpawnRate : Float -> Game -> Float
 updateEnemySpawnRate delta { enemySpawnRate, currentEnemyRate } =
@@ -61,15 +89,15 @@ updateEnemySpawnRate delta { enemySpawnRate, currentEnemyRate } =
        then 0
        else newEnemyRate
 
-spawnEnemies : Input -> Game -> Game
-spawnEnemies { delta } ({ enemies } as game) =
+spawnEnemies : Game -> Game
+spawnEnemies ({ enemies, enemyGenerator } as game) =
   let
-    newEnemyRate = updateEnemySpawnRate delta game
+    { currentRate, spawnType } = enemyGenerator
   in
-    { game |
-      currentEnemyRate <- newEnemyRate
-    , enemies <- if newEnemyRate == 0 then (newEnemy halfHeight)::enemies else enemies
-    }
+    if currentRate == 0
+       then { game | enemies <- enemyGenerator.spawnType::enemies }
+       else game
+
 
 updateRate : Player -> Float -> Float
 updateRate { currentRate, fireRate } delta =
@@ -86,39 +114,31 @@ processInput { x, y, shoot, delta } ({ player } as game) =
     newRate = updateRate player delta
     newPlayer =
       { player |
-        dx <- (toFloat x)
-      , dy <- (toFloat y)
+        dx <- (toFloat x) * player.speed
+      , dy <- (toFloat y) * player.speed
       , shooting <- shoot && newRate == 0
       , currentRate <- newRate
       }
   in
     { game | player <- newPlayer }
 
-updatePosition : Game -> Game
-updatePosition ({ player } as game) =
-  let
-    { x, y, dx, dy, speed, currentRate, fireRate } = player
-    newPlayer =
-      { player |
-        x <- x + dx * speed
-      , y <- y + dy * speed
-      }
-  in
-    { game | player <- newPlayer }
+updatePositions : Game -> Game
+updatePositions ({ player, bullets, enemies } as game) =
+  { game |
+    player <- updateMovement player
+  , enemies <- updateMovements enemies
+  , bullets <- updateMovements bullets
+  }
 
-updateBullet : Bullet -> Bullet
-updateBullet ({ y, dy, toLive } as bullet) =
-  let
-    newY = y + dy
-    newToLive = toLive - 1
-  in
-    { bullet | y <- newY, toLive <- newToLive }
+decayBullet : Bullet -> Bullet
+decayBullet ({ toLive } as bullet) =
+  { bullet | toLive <- toLive - 1 }
 
-updateBullets : Game -> Game
-updateBullets ({ bullets } as game) =
+decayBullets : Game -> Game
+decayBullets ({ bullets } as game) =
   let
-    newBullets = List.map updateBullet bullets
-    remainingBullets = List.filter (\{ toLive } -> toLive > 0) newBullets
+    updatedBullets = List.map decayBullet bullets
+    remainingBullets = List.filter (\{ toLive } -> toLive > 0) updatedBullets
   in
     { game | bullets <- remainingBullets }
 
