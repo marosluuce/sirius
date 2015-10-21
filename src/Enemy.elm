@@ -5,10 +5,10 @@ import Object exposing (Object)
 type alias Enemy =
   Object { health : Int }
 
-newEnemy : Float -> Enemy
-newEnemy halfHeight =
-  { x = 0
-  , y = halfHeight
+newEnemy : Float -> Float -> Enemy
+newEnemy x y =
+  { x = x
+  , y = y
   , dx = 0
   , dy = -7
   , width = 16

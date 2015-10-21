@@ -23,16 +23,20 @@ type alias Game =
   }
 
 type alias Generator a =
-  { spawnRate : Float
+  { x : Float
+  , y : Float
+  , spawnRate : Float
   , currentRate : Float
-  , spawnType : a
+  , spawnType : (Float -> Float -> a)
   }
 
 enemyGenerator : Generator Enemy
 enemyGenerator =
-  { spawnRate = 1500
+  { x = 0
+  , y = halfHeight
+  , spawnRate = 1500
   , currentRate = 0
-  , spawnType = newEnemy halfHeight
+  , spawnType = newEnemy
   }
 
 newGame : Game
@@ -44,13 +48,14 @@ newGame =
   }
 
 generate : Float -> Generator a -> (Generator a, Maybe a)
-generate delta ({ spawnRate, currentRate, spawnType } as generator) =
+generate delta ({ x, y, spawnRate, currentRate, spawnType } as generator) =
   let
     newRate = currentRate + delta
+    newType = spawnType x y
   in
     if newRate < spawnRate
       then ({ generator | currentRate <- newRate }, Nothing)
-      else ({ generator | currentRate <- 0 }, Just spawnType)
+      else ({ generator | currentRate <- 0 }, Just newType)
 
 update : Input -> Game -> Game
 update ({ delta } as input) game =
