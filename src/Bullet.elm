@@ -4,7 +4,9 @@ import Object exposing (Object)
 import Player exposing (Player)
 
 type alias Bullet =
-  Object { toLive : Int }
+  Object { toLive : Int
+         , damage : Float
+         }
 
 newBullet : Player -> Bullet
 newBullet model =
@@ -15,4 +17,5 @@ newBullet model =
   , width = 4
   , height = 50
   , toLive = 1000
+  , damage = 500
   }

@@ -11,6 +11,7 @@ import Player exposing (Player, newPlayer)
 import Bullet exposing (Bullet, newBullet)
 import Enemy exposing (Enemy, newEnemy)
 import Object exposing (Object)
+import Collision exposing (collided)
 
 (screenWidth, screenHeight) = (800, 600)
 (halfWidth, halfHeight) = (400, 300)
@@ -57,14 +58,55 @@ generate delta ({ x, y, spawnRate, currentRate, spawnType } as generator) =
       then ({ generator | currentRate <- 0 }, Just newType)
       else ({ generator | currentRate <- newRate }, Nothing)
 
+collideBullet : List Bullet -> Enemy -> Enemy
+collideBullet bullets ({ health } as enemy) =
+  let
+    collidedBullets = List.filter (collided enemy) bullets
+    damage = List.map (.damage) collidedBullets
+    totalDamage = List.sum damage
+  in
+    { enemy | health <- health - totalDamage }
+
+handleCollision : Game -> Game
+handleCollision ({ bullets, enemies } as game) =
+  let
+    updatedEnemies = List.map (collideBullet bullets) enemies
+  in
+    { game | enemies <- updatedEnemies }
+
 update : Input -> Game -> Game
 update ({ delta } as input) game =
   game
   |> processInput input
-  |> updatePositions
-  |> decayBullets
+  |> handleCollision
+  |> cleanup
   |> updateShooting
   |> spawnEnemies delta
+  |> updatePositions
+
+decayBullet : Bullet -> Bullet
+decayBullet ({ toLive } as bullet) =
+  { bullet | toLive <- toLive - 1 }
+
+keepEnemy : Enemy -> Bool
+keepEnemy { y, height, health } =
+  let
+    top = y + height / 2
+  in
+    health > 0 && top > -halfHeight
+
+cleanup : Game -> Game
+cleanup ({ bullets, enemies } as game) =
+  let
+    updatedBullets = List.map decayBullet bullets
+    remainingBullets = List.filter (\{ toLive } -> toLive > 0) updatedBullets
+    remainingEnemies = List.filter keepEnemy enemies
+  in
+    { game |
+      bullets <- remainingBullets
+    , enemies <- remainingEnemies
+    }
+
 
 updateMovement : Object a -> Object a
 updateMovement ({ x, y, dx, dy } as object) =
@@ -117,18 +159,6 @@ updatePositions ({ player, bullets, enemies } as game) =
   , enemies <- updateMovements enemies
   , bullets <- updateMovements bullets
   }
-
-decayBullet : Bullet -> Bullet
-decayBullet ({ toLive } as bullet) =
-  { bullet | toLive <- toLive - 1 }
-
-decayBullets : Game -> Game
-decayBullets ({ bullets } as game) =
-  let
-    updatedBullets = List.map decayBullet bullets
-    remainingBullets = List.filter (\{ toLive } -> toLive > 0) updatedBullets
-  in
-    { game | bullets <- remainingBullets }
 
 updateShooting : Game -> Game
 updateShooting ({ player, bullets } as game) =

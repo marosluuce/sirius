@@ -3,7 +3,7 @@ module Enemy (Enemy, newEnemy) where
 import Object exposing (Object)
 
 type alias Enemy =
-  Object { health : Int }
+  Object { health : Float }
 
 newEnemy : Float -> Float -> Enemy
 newEnemy x y =
