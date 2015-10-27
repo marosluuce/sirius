@@ -21,6 +21,7 @@ type alias Game =
   , bullets : List Bullet
   , enemies : List Enemy
   , enemyGenerator : Generator Enemy
+  , bulletGenerator : Generator Bullet
   }
 
 type alias Generator a =
@@ -29,6 +30,15 @@ type alias Generator a =
   , spawnRate : Float
   , currentRate : Float
   , spawnType : (Float -> Float -> a)
+  }
+
+bulletGenerator : Generator Bullet
+bulletGenerator =
+  { x = 0
+  , y = 0
+  , spawnRate = 800
+  , currentRate = 0
+  , spawnType = newBullet
   }
 
 enemyGenerator : Generator Enemy
@@ -46,16 +56,17 @@ newGame =
   , bullets = []
   , enemies = []
   , enemyGenerator = enemyGenerator
+  , bulletGenerator = bulletGenerator
   }
 
 generate : Float -> Generator a -> (Generator a, Maybe a)
 generate delta ({ x, y, spawnRate, currentRate, spawnType } as generator) =
   let
-    newRate = currentRate + delta
+    newRate = currentRate - delta
     newType = spawnType x y
   in
-    if newRate >= spawnRate
-      then ({ generator | currentRate <- 0 }, Just newType)
+    if newRate <= 0
+      then ({ generator | currentRate <- spawnRate }, Just newType)
       else ({ generator | currentRate <- newRate }, Nothing)
 
 collideBullet : List Bullet -> Enemy -> (Enemy, List Bullet)
@@ -135,28 +146,25 @@ spawnEnemies delta ({ enemies, enemyGenerator } as game) =
   in
     { game | enemyGenerator <- newGenerator, enemies <- newEnemies }
 
-updateRate : Player -> Float -> Float
-updateRate { currentRate, fireRate } delta =
-  let
-    newRate = currentRate + delta
-  in
-    if newRate >= fireRate
-      then 0
-      else newRate
-
 processInput : Input -> Game -> Game
-processInput { x, y, shoot, delta } ({ player } as game) =
+processInput input ({ player, bulletGenerator } as game) =
   let
-    newRate = updateRate player delta
+    { x, y, shoot, delta } = input
+    (newBulletGenerator, maybeBullet) = generate delta bulletGenerator
+    shooting = case maybeBullet of
+                 Just bullet -> shoot
+                 Nothing -> False
     newPlayer =
       { player |
         dx <- (toFloat x) * player.speed
       , dy <- (toFloat y) * player.speed
-      , shooting <- shoot && newRate == 0
-      , currentRate <- newRate
+      , shooting <- shooting
       }
   in
-    { game | player <- newPlayer }
+    { game |
+      player <- newPlayer
+    , bulletGenerator <- newBulletGenerator
+    }
 
 updatePositions : Game -> Game
 updatePositions ({ player, bullets, enemies } as game) =
@@ -169,7 +177,7 @@ updatePositions ({ player, bullets, enemies } as game) =
 updateShooting : Game -> Game
 updateShooting ({ player, bullets } as game) =
   if player.shooting
-     then { game | bullets <- (newBullet player)::bullets }
+     then { game | bullets <- (newBullet player.x player.y)::bullets }
      else game
 
 playerRect : Player -> Form
@@ -195,10 +203,10 @@ view (width, height) { player, bullets, enemies } =
     drawnEnemies = Draw.manyAt enemyPositions <| List.map enemyRect enemies
   in
     collage width height <|
-      [ rect screenWidth screenHeight |> filled blue
-      , drawnPlayer
-      ] ++ drawnBullets
-        ++ drawnEnemies
+      [ rect screenWidth screenHeight |> filled blue]
+      ++ drawnBullets
+      ++ drawnEnemies
+      ++ [drawnPlayer]
 
 main : Signal Element
 main =

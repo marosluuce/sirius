@@ -8,10 +8,10 @@ type alias Bullet =
          , damage : Float
          }
 
-newBullet : Player -> Bullet
-newBullet model =
-  { x = model.x
-  , y = model.y + model.height
+newBullet : Float -> Float -> Bullet
+newBullet x y =
+  { x = x
+  , y = y
   , dx = 0
   , dy = 12
   , width = 4

@@ -5,8 +5,6 @@ import Object exposing (Object)
 type alias Player =
   Object { shooting : Bool
          , speed : Float
-         , fireRate : Float
-         , currentRate : Float
          }
 
 newPlayer : Float -> Player
@@ -19,6 +17,4 @@ newPlayer halfHeight =
   , height = 25
   , shooting = False
   , speed = 6
-  , fireRate = 300
-  , currentRate = 0
   }
