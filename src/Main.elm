@@ -58,21 +58,27 @@ generate delta ({ x, y, spawnRate, currentRate, spawnType } as generator) =
       then ({ generator | currentRate <- 0 }, Just newType)
       else ({ generator | currentRate <- newRate }, Nothing)
 
-collideBullet : List Bullet -> Enemy -> Enemy
+collideBullet : List Bullet -> Enemy -> (Enemy, List Bullet)
 collideBullet bullets ({ health } as enemy) =
   let
     collidedBullets = List.filter (collided enemy) bullets
     damage = List.map (.damage) collidedBullets
     totalDamage = List.sum damage
   in
-    { enemy | health <- health - totalDamage }
+    ({ enemy | health <- health - totalDamage }, collidedBullets)
 
 handleCollision : Game -> Game
 handleCollision ({ bullets, enemies } as game) =
   let
-    updatedEnemies = List.map (collideBullet bullets) enemies
+    collisions = List.map (collideBullet bullets) enemies
+    updatedEnemies = List.map fst collisions
+    collidedBullets = List.concatMap snd collisions
+    updatedBullets = List.filter (\x -> not <| List.member x collidedBullets) bullets
   in
-    { game | enemies <- updatedEnemies }
+    { game |
+      enemies <- updatedEnemies
+    , bullets <- updatedBullets
+    }
 
 update : Input -> Game -> Game
 update ({ delta } as input) game =
