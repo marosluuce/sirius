@@ -97,9 +97,9 @@ update ({ delta } as input) game =
   |> processInput input
   |> handleCollision
   |> cleanup
-  |> updateShooting
-  |> spawnEnemies delta
   |> updatePositions
+  |> updateShooting delta
+  |> spawnEnemies delta
 
 decayBullet : Bullet -> Bullet
 decayBullet ({ toLive } as bullet) =
@@ -124,7 +124,6 @@ cleanup ({ bullets, enemies } as game) =
     , enemies <- remainingEnemies
     }
 
-
 updateMovement : Object a -> Object a
 updateMovement ({ x, y, dx, dy } as object) =
   { object |
@@ -147,24 +146,16 @@ spawnEnemies delta ({ enemies, enemyGenerator } as game) =
     { game | enemyGenerator <- newGenerator, enemies <- newEnemies }
 
 processInput : Input -> Game -> Game
-processInput input ({ player, bulletGenerator } as game) =
+processInput { x, y, shoot, delta } ({ player } as game) =
   let
-    { x, y, shoot, delta } = input
-    (newBulletGenerator, maybeBullet) = generate delta bulletGenerator
-    shooting = case maybeBullet of
-                 Just bullet -> shoot
-                 Nothing -> False
     newPlayer =
       { player |
         dx <- (toFloat x) * player.speed
       , dy <- (toFloat y) * player.speed
-      , shooting <- shooting
+      , shooting <- shoot
       }
   in
-    { game |
-      player <- newPlayer
-    , bulletGenerator <- newBulletGenerator
-    }
+    { game | player <- newPlayer }
 
 updatePositions : Game -> Game
 updatePositions ({ player, bullets, enemies } as game) =
@@ -174,11 +165,22 @@ updatePositions ({ player, bullets, enemies } as game) =
   , bullets <- updateMovements bullets
   }
 
-updateShooting : Game -> Game
-updateShooting ({ player, bullets } as game) =
-  if player.shooting
-     then { game | bullets <- (newBullet player.x player.y)::bullets }
-     else game
+updateShooting : Float -> Game -> Game
+updateShooting delta ({ player, bullets, bulletGenerator } as game) =
+  let
+    movedBulletGenerator = { bulletGenerator | x <- player.x, y <- player.y }
+    (newBulletGenerator, maybeBullet) = generate delta movedBulletGenerator
+  in
+    case maybeBullet of
+      Just bullet ->
+        if player.shooting
+          then { game |
+                 bullets <- bullet::bullets
+               , bulletGenerator <- newBulletGenerator
+               }
+          else game
+      Nothing ->
+        { game | bulletGenerator <- newBulletGenerator }
 
 playerRect : Player -> Form
 playerRect { width, height } =
@@ -196,10 +198,10 @@ view : (Int, Int) -> Game -> Element
 view (width, height) { player, bullets, enemies } =
   let
     playerPosition = (player.x, player.y)
-    drawnPlayer = Draw.oneAt playerPosition <| playerRect player
     bulletPositions = List.map (\b -> (b.x, b.y)) bullets
-    drawnBullets = Draw.manyAt bulletPositions <| List.map bulletRect bullets
     enemyPositions = List.map (\e -> (e.x, e.y)) enemies
+    drawnPlayer = Draw.oneAt playerPosition <| playerRect player
+    drawnBullets = Draw.manyAt bulletPositions <| List.map bulletRect bullets
     drawnEnemies = Draw.manyAt enemyPositions <| List.map enemyRect enemies
   in
     collage width height <|
